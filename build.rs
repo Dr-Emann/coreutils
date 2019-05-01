@@ -1,9 +1,15 @@
+extern crate phf_codegen;
+
 use std::env;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 
 pub fn main() {
+    // The build script doesn't depend on any files
+    // Don't re-run it whenever a file changes
+    // It will be automatically re-run when features change
+    println!("cargo:rerun-if-changed=build.rs");
     if let Ok(profile) = env::var("PROFILE") {
         println!("cargo:rustc-cfg=build={:?}", profile);
     }
@@ -20,7 +26,7 @@ pub fn main() {
                 | "nightly" | "test_unimplemented" => continue,
                 _ => {}
             }
-            crates.push(krate.to_string());
+            crates.push(krate);
         }
     }
     crates.sort();
@@ -29,48 +35,38 @@ pub fn main() {
     let mut mf = File::create(Path::new(&out_dir).join("uutils_map.rs")).unwrap();
 
     mf.write_all(
-        "
-    type UtilityMap = HashMap<&'static str, fn(Vec<String>) -> i32>;
+        b"
+    type UtilityMap = phf::Map<&'static str, fn(Vec<String>) -> i32>;
 
-    fn util_map() -> UtilityMap {
-    let mut map: UtilityMap = HashMap::new();\n"
-            .as_bytes(),
+    fn util_map() -> &'static UtilityMap { &UTIL_MAP }
+    static UTIL_MAP: UtilityMap = "
     ).unwrap();
 
-    for krate in crates {
+    let mut map = phf_codegen::Map::new();
+    for krate in &crates {
         cf.write_all(format!("extern crate uu_{krate};\n", krate = krate).as_bytes())
             .unwrap();
 
-        match krate.as_ref() {
-            "hashsum" => {
-                mf.write_all(
-                    "map.insert(\"hashsum\", uu_hashsum::uumain);
-                              map.insert(\"md5sum\", uu_hashsum::uumain);
-                              map.insert(\"sha1sum\", uu_hashsum::uumain);
-                              map.insert(\"sha224sum\", uu_hashsum::uumain);
-                              map.insert(\"sha256sum\", uu_hashsum::uumain);
-                              map.insert(\"sha384sum\", uu_hashsum::uumain);
-                              map.insert(\"sha512sum\", uu_hashsum::uumain);
-                              map.insert(\"sha3sum\", uu_hashsum::uumain);
-                              map.insert(\"sha3-224sum\", uu_hashsum::uumain);
-                              map.insert(\"sha3-256sum\", uu_hashsum::uumain);
-                              map.insert(\"sha3-384sum\", uu_hashsum::uumain);
-                              map.insert(\"sha3-512sum\", uu_hashsum::uumain);
-                              map.insert(\"shake128sum\", uu_hashsum::uumain);
-                              map.insert(\"shake256sum\", uu_hashsum::uumain);\n"
-                        .as_bytes(),
-                ).unwrap();
-            }
-            _ => mf.write_all(
-                format!(
-                    "map.insert(\"{krate}\", uu_{krate}::uumain);\n",
-                    krate = krate
-                ).as_bytes(),
-            ).unwrap(),
+        if krate == "hashsum" {
+            map.entry("md5sum", "uu_hashsum::uumain as fn(Vec<String>) -> i32");
+            map.entry("sha1sum", "uu_hashsum::uumain");
+            map.entry("sha224sum", "uu_hashsum::uumain");
+            map.entry("sha256sum", "uu_hashsum::uumain");
+            map.entry("sha384sum", "uu_hashsum::uumain");
+            map.entry("sha512sum", "uu_hashsum::uumain");
+            map.entry("sha3sum", "uu_hashsum::uumain");
+            map.entry("sha3-224sum", "uu_hashsum::uumain");
+            map.entry("sha3-256sum", "uu_hashsum::uumain");
+            map.entry("sha3-384sum", "uu_hashsum::uumain");
+            map.entry("sha3-512sum", "uu_hashsum::uumain");
+            map.entry("shake128sum", "uu_hashsum::uumain");
+            map.entry("shake256sum", "uu_hashsum::uumain");
         }
+        map.entry(&krate, &format!("uu_{krate}::uumain as fn(Vec<String>) -> i32", krate=krate));
     }
-
-    mf.write_all("map\n}\n".as_bytes()).unwrap();
+    
+    map.build(&mut mf).unwrap();
+    mf.write_all(b";\n").unwrap();
 
     cf.flush().unwrap();
     mf.flush().unwrap();

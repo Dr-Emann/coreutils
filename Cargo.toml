@@ -154,6 +154,7 @@ default = ["generic", "unix"]
 [workspace]
 
 [dependencies]
+phf      = "0.7.24"
 uucore   = { path="src/uucore" }
 arch     = { optional=true, path="src/arch" }
 base32   = { optional=true, path="src/base32" }
@@ -258,6 +259,9 @@ rand = "0.6.5"
 tempdir = "0.3.7"
 unindent = "0.1.3"
 lazy_static = "1.3.0"
+
+[build-dependencies]
+phf_codegen = "0.7.24"
 
 [target.'cfg(unix)'.dev-dependencies]
 rust-users = { git = "https://github.com/uutils/rust-users" }

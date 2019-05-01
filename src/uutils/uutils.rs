@@ -9,9 +9,10 @@
  * file that was distributed with this source code.
  */
 
+extern crate phf;
+
 include!(concat!(env!("OUT_DIR"), "/uutils_crates.rs"));
 
-use std::collections::hash_map::HashMap;
 use std::path::Path;
 use std::io::Write;
 
